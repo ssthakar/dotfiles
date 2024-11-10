@@ -1,7 +1,7 @@
 ---@type ChadrcConfig
 local M = {}
 
-M.ui = { theme = 'gruvbox' }
+M.ui = { theme = 'onedark' }
 -- make nvim transparent for that rice
 M.ui.transparency = true
 -- load custom plugins and over-rides
