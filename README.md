@@ -1,4 +1,4 @@
-## A repo to track dotfiles across different machines.
+## A repo to track dotfiles across different machines using GNU-Stow.
 
 ### Currently tracks:
 * neovim
