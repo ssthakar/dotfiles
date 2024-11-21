@@ -3,3 +3,5 @@
 ### Currently tracks:
 * neovim
 * kitty
+* fish
+* Wallpapers
