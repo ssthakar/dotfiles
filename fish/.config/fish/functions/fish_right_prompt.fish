@@ -1,4 +1,12 @@
 function fish_right_prompt
+
+    # Add container/native status at the start
+    if test -n "$CONTAINER_ID"
+        echo -n (set_color yellow)"[$CONTAINER_ID] "
+    else
+        echo -n (set_color green)"[native] "
+    end
+    
     set -l cmd_status $status
     if test $cmd_status -ne 0
         echo -n (set_color red)"✘ $cmd_status"
