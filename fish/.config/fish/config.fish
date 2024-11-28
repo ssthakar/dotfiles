@@ -8,6 +8,7 @@ if test -z "$CONTAINER_ID"
     fastfetch
 end
 
+# fish setup for ubuntu-24.04 container
 if test "$CONTAINER_ID" = "ubuntu_24"
   alias ls 'lsd -A'
   set fish_greeting "Running in container"

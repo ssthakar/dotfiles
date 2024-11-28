@@ -11,6 +11,7 @@ local plugins = {
     end,
     ft = { "markdown" },
   },
+  
   -- compile .tex docs from neovim
   {
     "lervag/vimtex",
