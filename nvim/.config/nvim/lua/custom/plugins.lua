@@ -11,7 +11,7 @@ local plugins = {
     end,
     ft = { "markdown" },
   },
-  
+    
   -- compile .tex docs from neovim
   {
     "lervag/vimtex",
@@ -49,6 +49,7 @@ local plugins = {
       ensure_installed = {
         "clangd",
         "pyright",
+        "lua-language-server",
         "texlab"
       }
     }

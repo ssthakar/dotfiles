@@ -9,6 +9,8 @@ if test -z "$CONTAINER_ID"
 
     alias gen_dev 'source $HOME/Mlab/Python_stuff/Env/gen_dev/bin/activate.fish && which python'
     alias jax 'source $HOME/Mlab/Python_stuff/Env/JAX/bin/activate.fish && which python'
+    alias vim 'nvim'
+    alias activate_py 'source .venv/bin/activate.fish'
     fastfetch
 end
 
