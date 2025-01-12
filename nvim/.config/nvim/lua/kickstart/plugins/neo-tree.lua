@@ -16,6 +16,9 @@ return {
   opts = {
     filesystem = {
       window = {
+        -- adjust the width of the tree
+        width = 25,
+        position = 'left',
         mappings = {
           ['\\'] = 'close_window',
         },
