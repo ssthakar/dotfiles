@@ -6,9 +6,16 @@ function fish_prompt
     echo -n (set_color blue)(prompt_pwd)' '
 
     set_color -o
-    if fish_is_root_user
-        echo -n (set_color red)'# '
+    
+    if string match -q "simvascular" "$CONTAINER_ID"
+        echo -n (set_color red)'❯'(set_color red)'❯'(set_color red)'❯ '
+    end  
+    
+    #if fish_is_root_user
+    #    echo -n (set_color red)'# '
+    #end
+    if test -z "$CONTAINER_ID"
+        echo -n (set_color green)'❯'(set_color green)'❯'(set_color green)'❯ '
     end
-    echo -n (set_color red)'❯'(set_color yellow)'❯'(set_color green)'❯ '
     set_color normal
 end
