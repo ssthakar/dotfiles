@@ -861,6 +861,40 @@ require('lazy').setup({
     'catppuccin/nvim',
     name = 'catppuccin',
     priority = 1000, -- Make sure to load this before all the other start plugins.
+    opts = {
+      term_colors = true,
+      transparent_background = true,
+      styles = {
+        comments = {},
+        conditionals = {},
+        loops = {},
+        functions = {},
+        keywords = {},
+        strings = {},
+        variables = {},
+        numbers = {},
+        booleans = {},
+        properties = {},
+        types = {},
+      },
+      color_overrides = {
+        mocha = {
+          base = '#000000',
+          mantle = '#000000',
+          crust = '#000000',
+        },
+      },
+      integrations = {
+        telescope = {
+          enabled = true,
+          style = 'nvchad',
+        },
+        dropbar = {
+          enabled = true,
+          color_mode = true,
+        },
+      },
+    },
     init = function()
       -- Load the colorscheme here.
       -- Like many other themes, this one has different styles, and you could load
@@ -871,6 +905,44 @@ require('lazy').setup({
       vim.cmd.hi 'Comment gui=none'
     end,
   },
+  -- {
+  --   'catppuccin/nvim',
+  --   name = 'catppuccin',
+  --   opts = {
+  --     term_colors = true,
+  --     transparent_background = false,
+  --     styles = {
+  --       comments = {},
+  --       conditionals = {},
+  --       loops = {},
+  --       functions = {},
+  --       keywords = {},
+  --       strings = {},
+  --       variables = {},
+  --       numbers = {},
+  --       booleans = {},
+  --       properties = {},
+  --       types = {},
+  --     },
+  --     color_overrides = {
+  --       mocha = {
+  --         base = '#000000',
+  --         mantle = '#000000',
+  --         crust = '#000000',
+  --       },
+  --     },
+  --     integrations = {
+  --       telescope = {
+  --         enabled = true,
+  --         style = 'nvchad',
+  --       },
+  --       dropbar = {
+  --         enabled = true,
+  --         color_mode = true,
+  --       },
+  --     },
+  --   },
+  -- },
 
   -- Highlight todo, notes, etc in comments
   { 'folke/todo-comments.nvim', event = 'VimEnter', dependencies = { 'nvim-lua/plenary.nvim' }, opts = { signs = false } },

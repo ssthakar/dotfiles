@@ -1,0 +1,69 @@
+#!/usr/bin/env fish
+
+# tmux sessionzier but with fish
+
+
+# Handle special flags
+if test (count $argv) -ge 1
+    # Check for cycle command
+    if test "$argv[1]" = "-n"
+        # Next session
+        tmux switch-client -n
+        exit 0
+    else if test "$argv[1]" = "-p"
+        # Previous session
+        tmux switch-client -p
+        exit 0
+    else if test "$argv[1]" = "-l"
+        # List sessions
+        tmux list-sessions
+        exit 0
+    else if test "$argv[1]" = "-i"
+        # Interactive session switcher
+        set session_name (tmux list-sessions -F "#{session_name}" | fzf)
+        if test -n "$session_name" 
+            tmux switch-client -t $session_name
+        end
+        exit 0
+    else if string match -q -- "-d*" $argv[1]
+        # Extract depth number from argument (e.g., -d3 → 3)
+        set depth (string replace -- "-d" "" $argv[1])
+        set argv $argv[2..-1]
+    else
+        set depth 1
+    end
+else
+    set depth 1
+end
+
+# Handle directory selection
+if test (count $argv) -eq 1
+    set selected $argv[1]
+else
+    set selected (find ~/MLab/ ~/Scratch/ ~/ -mindepth 0 -maxdepth $depth -type d | fzf)
+end
+
+if test -z "$selected"
+    exit 0
+end
+
+set selected_name (basename "$selected" | tr . _)
+set tmux_running (pgrep tmux)
+
+if test -z "$TMUX" && test -z "$tmux_running"
+    tmux new-session -s $selected_name -c $selected
+    exit 0
+end
+
+if not tmux has-session -t=$selected_name 2>/dev/null
+    tmux new-session -ds $selected_name -c $selected
+end
+
+# Check if we're in a tmux client
+if test -n "$TMUX"
+    # We're in tmux, so switch client
+    tmux switch-client -t $selected_name
+else
+    # We're not in tmux, so attach instead
+    tmux attach-session -t $selected_name
+end
