@@ -30,17 +30,17 @@ if test (count $argv) -ge 1
         set depth (string replace -- "-d" "" $argv[1])
         set argv $argv[2..-1]
     else
-        set depth 1
+        set depth 2
     end
 else
-    set depth 1
+    set depth 2
 end
 
 # Handle directory selection
 if test (count $argv) -eq 1
     set selected $argv[1]
 else
-    set selected (find ~/MLab/ ~/Scratch/ ~/ -mindepth 0 -maxdepth $depth -type d | fzf)
+    set selected (find ~/CoMAIL/CardioVascular/ ~/Scratch/ ~/ -mindepth 0 -maxdepth $depth -type d | fzf)
 end
 
 if test -z "$selected"

@@ -106,7 +106,7 @@ vim.opt.relativenumber = true
 
 -- Enable mouse mode, can be useful for resizing splits for example!
 vim.opt.mouse = 'a'
-
+vim.opt.termguicolors = true
 -- Don't show the mode, since it's already in the status line
 vim.opt.showmode = false
 
@@ -858,8 +858,9 @@ require('lazy').setup({
     --
     -- If you want to see what colorschemes are already installed, you can use `:Telescope colorscheme`.
     -- 'folke/tokyonight.nvim',
-    'catppuccin/nvim',
-    name = 'catppuccin',
+
+    'askfiy/visual_studio_code',
+    name = 'visual_studio_code',
     priority = 1000, -- Make sure to load this before all the other start plugins.
     opts = {
       term_colors = true,
@@ -899,7 +900,7 @@ require('lazy').setup({
       -- Load the colorscheme here.
       -- Like many other themes, this one has different styles, and you could load
       -- any other, such as 'tokyonight-storm', 'tokyonight-moon', or 'tokyonight-day'.
-      vim.cmd.colorscheme 'catppuccin-mocha'
+      vim.cmd.colorscheme 'visual_studio_code'
 
       -- You can configure highlights by doing something like:
       vim.cmd.hi 'Comment gui=none'
@@ -968,20 +969,163 @@ require('lazy').setup({
       -- Simple and easy statusline.
       --  You could remove this setup call if you don't like it,
       --  and try some other statusline plugin
-      local statusline = require 'mini.statusline'
+      -- local statusline = require 'mini.statusline'
       -- set use_icons to true if you have a Nerd Font
-      statusline.setup { use_icons = vim.g.have_nerd_font }
+      -- statusline.setup { use_icons = vim.g.have_nerd_font }
 
       -- You can configure sections in the statusline by overriding their
       -- default behavior. For example, here we set the section for
       -- cursor location to LINE:COLUMN
       ---@diagnostic disable-next-line: duplicate-set-field
-      statusline.section_location = function()
-        return '%2l:%-2v'
-      end
+      -- statusline.section_location = function()
+      -- return '%2l:%-2v'
+      -- end
 
       -- ... and there is more!
       --  Check out: https://github.com/echasnovski/mini.nvim
+    end,
+  },
+
+  {
+    'nvim-lualine/lualine.nvim',
+    dependencies = { 'nvim-tree/nvim-web-devicons' },
+    config = function()
+      -- Get VS Code colors
+      local colors = {
+        bg = '#151515', -- Background color
+        fg = '#D4D4D4', -- Foreground text color
+        yellow = '#DCDCAA', -- Function names
+        dark_yellow = '#D7BA7D', -- Keywords
+        cyan = '#4EC9B0', -- Type names
+        green = '#608B4E', -- Comments
+        light_green = '#B5CEA8', -- Strings
+        orange = '#CE9178', -- String content
+        blue = '#569CD6', -- Keywords
+        light_blue = '#9CDCFE', -- Variables
+        red = '#F44747', -- Errors
+        magenta = '#C586C0', -- Control keywords
+        grey = '#858585', -- Line numbers
+        vivid_blue = '#4FC1FF', -- Parameter names
+        error_red = '#F44747', -- Diagnostics error
+        info_yellow = '#FFCC66', -- Diagnostics warning
+      }
+
+      local vscode_theme = {
+        normal = {
+          a = { fg = colors.bg, bg = colors.blue, gui = 'bold' },
+          b = { fg = colors.fg, bg = colors.bg },
+          c = { fg = colors.fg, bg = colors.bg },
+        },
+        insert = {
+          a = { fg = colors.bg, bg = colors.green, gui = 'bold' },
+        },
+        visual = {
+          a = { fg = colors.bg, bg = colors.purple, gui = 'bold' },
+        },
+        replace = {
+          a = { fg = colors.bg, bg = colors.red, gui = 'bold' },
+        },
+        command = {
+          a = { fg = colors.bg, bg = colors.yellow, gui = 'bold' },
+        },
+        inactive = {
+          a = { fg = colors.grey, bg = colors.bg, gui = 'bold' },
+          b = { fg = colors.grey, bg = colors.bg },
+          c = { fg = colors.grey, bg = colors.bg },
+        },
+      }
+
+      require('lualine').setup {
+        options = {
+          theme = vscode_theme,
+          icons_enabled = true,
+          component_separators = { left = '', right = '' },
+          section_separators = { left = '', right = '' },
+          disabled_filetypes = {},
+          globalstatus = false, -- Set to false to have separate statuslines per window
+          refresh = {
+            statusline = 100,
+          },
+        },
+        sections = {
+          lualine_a = {
+            { 'mode', icon = ' ' },
+          },
+          lualine_b = {
+            { 'branch', icon = '' },
+            {
+              'diff',
+              symbols = { added = ' ', modified = ' ', removed = ' ' },
+              colored = true,
+              diff_color = {
+                added = { fg = colors.green },
+                modified = { fg = colors.blue },
+                removed = { fg = colors.red },
+              },
+            },
+          },
+          lualine_c = {
+            { 'filename', path = 1, file_status = true },
+          },
+          lualine_x = {
+            {
+              'diagnostics',
+              sources = { 'nvim_diagnostic' },
+              symbols = { error = ' ', warn = ' ', info = ' ', hint = ' ' },
+              diagnostics_color = {
+                error = { fg = colors.error_red },
+                warn = { fg = colors.info_yellow },
+                info = { fg = colors.vivid_blue },
+                hint = { fg = colors.light_green },
+              },
+            },
+            'encoding',
+            'fileformat',
+            'filetype',
+          },
+          lualine_y = {
+            'progress',
+          },
+          lualine_z = {
+            'location',
+          },
+        },
+        inactive_sections = {
+          lualine_a = {},
+          lualine_b = {},
+          lualine_c = { 'filename' },
+          lualine_x = { 'location' },
+          lualine_y = {},
+          lualine_z = {},
+        },
+        tabline = {},
+        extensions = { 'neo-tree', 'fugitive' },
+      }
+
+      -- Create an autocmd to set the position of the status line when entering command mode
+      local status_line_group = vim.api.nvim_create_augroup('StatusLinePosition', { clear = true })
+
+      -- When entering command-line mode, move statusline to top
+      vim.api.nvim_create_autocmd('CmdlineEnter', {
+        group = status_line_group,
+        callback = function()
+          vim.opt.laststatus = 3 -- Global statusline at the top
+        end,
+      })
+
+      -- When leaving command-line mode, move statusline back to bottom
+      vim.api.nvim_create_autocmd('CmdlineLeave', {
+        group = status_line_group,
+        callback = function()
+          vim.opt.laststatus = 2 -- Separate statuslines at the bottom
+        end,
+      })
+
+      -- Ensure we start with statusline at the bottom
+      vim.opt.laststatus = 2
+
+      -- Set cmdheight to 0 to hide the command line when not in use
+      vim.opt.cmdheight = 0
     end,
   },
   { -- Highlight, edit, and navigate code
@@ -1010,6 +1154,15 @@ require('lazy').setup({
     --    - Treesitter + textobjects: https://github.com/nvim-treesitter/nvim-treesitter-textobjects
   },
 
+  {
+    'iamcco/markdown-preview.nvim',
+    cmd = { 'MarkdownPreviewToggle', 'MarkdownPreview', 'MarkdownPreviewStop' },
+    build = 'cd app && yarn install',
+    init = function()
+      vim.g.mkdp_filetypes = { 'markdown' }
+    end,
+    ft = { 'markdown' },
+  },
   -- The following comments only work if you have downloaded the kickstart repo, not just copy pasted the
   -- init.lua. If you want these files, they are in the repository, so you can just download them and
   -- place them in the correct locations.
