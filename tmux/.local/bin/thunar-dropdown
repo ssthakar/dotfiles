@@ -1,0 +1,116 @@
+#!/bin/bash
+set -euo pipefail
+
+# ---- Config ----
+PANEL_Y=32
+HEIGHT_PCT=180
+WIDTH_PCT=100
+CACHE_DIR="${HOME}/.cache"
+WINID_FILE="${CACHE_DIR}/thunar-dropdown.winid"
+LOG="${CACHE_DIR}/thunar-dropdown.log"   # comment out to disable
+
+# ---- Hotkey-safe env ----
+export DISPLAY="${DISPLAY:-:0}"
+[ -z "${XAUTHORITY:-}" ] && [ -f "${HOME}/.Xauthority" ] && export XAUTHORITY="${HOME}/.Xauthority"
+mkdir -p "$CACHE_DIR"
+
+XDOTOOL="$(command -v xdotool || true)"
+XPROP="$(command -v xprop || true)"
+THUNAR="$(command -v thunar || true)"
+for B in "$XDOTOOL" "$XPROP" "$THUNAR"; do [ -n "$B" ] || { echo "Missing: $B" >&2; exit 1; }; done
+log(){ [ -n "${LOG:-}" ] && printf '%s %s\n' "$(date '+%F %T')" "$*" >>"$LOG"; }
+
+# ---- Geometry ----
+read SW SH < <("$XDOTOOL" getdisplaygeometry)
+W=$(( SW * WIDTH_PCT / 100 ))
+H=$(( SH * HEIGHT_PCT / 100 ))
+X=$(( (SW - W) / 2 ))
+Y=$PANEL_Y
+
+# ---- Helpers ----
+is_window(){
+  local id="${1:-}"
+  [ -n "$id" ] || return 1
+  "$XPROP" -id "$id" _NET_WM_WINDOW_TYPE >/dev/null 2>&1 || return 1
+  "$XPROP" -id "$id" WM_CLASS           2>/dev/null | grep -q 'Thunar' || return 1
+  "$XPROP" -id "$id" _NET_WM_WINDOW_TYPE 2>/dev/null | grep -q "_NET_WM_WINDOW_TYPE_NORMAL" || return 1
+}
+
+get_cached(){ [ -f "$WINID_FILE" ] && id="$(cat "$WINID_FILE")" && is_window "$id" && echo "$id"; }
+save_cache(){ printf '%s\n' "$1" > "$WINID_FILE"; }
+
+find_thunar_scan(){
+  mapfile -t wins < <("$XDOTOOL" search --class Thunar 2>/dev/null || true)
+  for (( i=${#wins[@]}-1; i>=0; i-- )); do
+    local id="${wins[i]}"
+    if is_window "$id"; then echo "$id"; return 0; fi
+  done
+  return 1
+}
+
+is_hidden(){ "$XPROP" -id "$1" _NET_WM_STATE 2>/dev/null | grep -q "_NET_WM_STATE_HIDDEN"; }
+
+current_desktop(){ "$XDOTOOL" get_desktop; }
+window_desktop(){ "$XDOTOOL" get_desktop_for_window "$1" 2>/dev/null || echo "$(current_desktop)"; }
+
+force_move_to_current_desktop(){
+  # Try to move the window to *our* desktop; if WM ignores it, set _NET_WM_DESKTOP via xprop.
+  local id="$1"
+  local cur="$(current_desktop)"
+  local dwin="$(window_desktop "$id")"
+
+  if [ "$dwin" != "$cur" ]; then
+    "$XDOTOOL" set_desktop_for_window "$id" "$cur" || true
+    sleep 0.03
+  fi
+
+  # Verify; if still not here, force-set the property directly
+  dwin="$(window_desktop "$id")"
+  if [ "$dwin" != "$cur" ]; then
+    # Write _NET_WM_DESKTOP to the current index (32-bit cardinal)
+    "$XPROP" -id "$id" -f _NET_WM_DESKTOP 32c -set _NET_WM_DESKTOP "$cur" || true
+    sleep 0.03
+  fi
+}
+
+show_thunar(){
+  local id="$1"
+  force_move_to_current_desktop "$id"
+  "$XDOTOOL" windowmap "$id"       || true
+  "$XDOTOOL" windowraise "$id"     || true
+  "$XDOTOOL" windowactivate --sync "$id" || true
+  # a tiny settle helps some WMs drop “demands attention”/focus prevention
+  sleep 0.03
+  "$XDOTOOL" windowmove "$id" "$X" "$Y"
+  "$XDOTOOL" windowsize "$id" "$W" "$H"
+}
+
+hide_thunar(){ "$XDOTOOL" windowminimize "$1"; }
+
+# ---- Main (cached first for instant response) ----
+log "---- Trigger ---- DISPLAY=$DISPLAY  XAUTHORITY=${XAUTHORITY:-<unset>}"
+WIN="$(get_cached || true)"
+[ -n "${WIN:-}" ] || WIN="$(find_thunar_scan || true)"
+
+if [ -n "${WIN:-}" ]; then
+  save_cache "$WIN"
+  if is_hidden "$WIN"; then
+    log "Restore Thunar ($WIN)"
+    show_thunar "$WIN"
+  else
+    log "Minimize Thunar ($WIN)"
+    hide_thunar "$WIN"
+  fi
+  exit 0
+fi
+
+# No window: launch → wait → show
+log "Launching Thunar"
+"$THUNAR" >/dev/null 2>&1 & disown
+WIN="$("$XDOTOOL" search --sync --class Thunar | tail -n1)"
+is_window "$WIN" || WIN="$(find_thunar_scan || echo "$WIN")"
+save_cache "$WIN"
+log "New Thunar window: $WIN"
+show_thunar "$WIN"
+
+

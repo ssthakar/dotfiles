@@ -1,0 +1,10 @@
+#!/bin/sh
+# distrobox_binary
+# name: ubuntu-18
+if [ -z "${CONTAINER_ID}" ]; then
+	exec "/usr/bin/distrobox-enter"  -n ubuntu-18  --  /usr/local/sv/svsolver/2022-07-22/svpre  "$@"
+elif [ -n "${CONTAINER_ID}" ] && [ "${CONTAINER_ID}" != "ubuntu-18" ]; then
+	exec distrobox-host-exec /home/ssthakar/.local/bin/svpre  "$@"
+else
+	exec /usr/local/sv/svsolver/2022-07-22/svpre "$@"
+fi

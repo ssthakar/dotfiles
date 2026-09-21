@@ -1,4 +1,4 @@
-font_size 16
+font_size 12
 window_padding_width 8
 # font_family      JetBrainsMono Nerd Font
 # italic_font      auto
@@ -15,12 +15,9 @@ map ctrl+shift+enter new_window_with_cwd
 map ctrl+shift+s launch --type=overlay sh -c 'kitty @ launch --type=overlay sh -c "kitty @ get-text > ~/terminal_output.txt"'
 
 # BEGIN_KITTY_THEME
-# Gruvbox Dark
+# Catppuccin-Macchiato
 include current-theme.conf
 # END_KITTY_THEME
-
-background_opacity 0.95
-background_blur 50
 
 
 # BEGIN_KITTY_FONTS

@@ -1,0 +1,232 @@
+#!/bin/bash
+set -euo pipefail
+
+# ---- Config ----
+PANEL_Y=32
+HEIGHT_PCT=180
+WIDTH_PCT=100
+
+CACHE_DIR="${HOME}/.cache"
+WINID_FILE="${CACHE_DIR}/chatgpt.chrome.winid"
+LOG="${CACHE_DIR}/chatgpt.chrome.log"      # comment out to disable
+FIRST_RUN_FLAG="${CACHE_DIR}/chatgpt.chrome.first-run"
+
+BROWSER="/usr/bin/google-chrome"               # .deb path
+PROFILE_DIR="${HOME}/.config/chatgpt-chrome"   # dedicated instance (persistent)
+WM_CLASS="ChatGPTChrome"                       # kept for backwards compat / X11
+CHAT_URL="https://chatgpt.com/"                # only used on FIRST run
+
+# ---- Hotkey-safe env ----
+export DISPLAY="${DISPLAY:-:0}"
+[ -z "${XAUTHORITY:-}" ] && [ -f "${HOME}/.Xauthority" ] && export XAUTHORITY="${HOME}/.Xauthority"
+mkdir -p "$CACHE_DIR" "$PROFILE_DIR"
+
+XDOTOOL="$(command -v xdotool || true)"
+XPROP="$(command -v xprop || true)"
+for B in "$XDOTOOL" "$XPROP" "$BROWSER"; do
+  [ -n "$B" ] || { echo "Missing: $B" >&2; exit 1; }
+done
+
+log(){
+  [ -n "${LOG:-}" ] && printf '%s %s\n' "$(date '+%F %T')" "$*" >>"$LOG"
+}
+
+# ---- Chrome flags (Wayland => force X11/XWayland) ----
+CHROME_FLAGS=()
+if [ "${XDG_SESSION_TYPE:-}" = "wayland" ]; then
+  # Run Chrome via XWayland so xdotool/xprop work
+  CHROME_FLAGS+=( --ozone-platform=x11 )
+fi
+
+# ---- Geometry ----
+read SW SH < <("$XDOTOOL" getdisplaygeometry)
+W=$(( SW * WIDTH_PCT / 100 ))
+H=$(( SH * HEIGHT_PCT / 100 ))
+X=$(( (SW - W) / 2 ))
+Y=$PANEL_Y
+
+# ---- Helpers ----
+is_target_window(){
+  local id="${1:-}"
+  [ -n "$id" ] || return 1
+
+  # Must be an X11 window with a "normal" type
+  "$XPROP" -id "$id" _NET_WM_WINDOW_TYPE >/dev/null 2>&1 || return 1
+  "$XPROP" -id "$id" _NET_WM_WINDOW_TYPE 2>/dev/null \
+    | grep -q "_NET_WM_WINDOW_TYPE_NORMAL" || return 1
+
+  # WM_CLASS check is *optional* now to be robust across Wayland/XWayland
+  # If it exists and matches, good; if not, we still accept the window.
+  local wmclass
+  wmclass="$("$XPROP" -id "$id" WM_CLASS 2>/dev/null || true)"
+  if [ -n "$wmclass" ] && ! echo "$wmclass" | grep -Fq "$WM_CLASS"; then
+    # Not our app if WM_CLASS is clearly different
+    return 1
+  fi
+
+  return 0
+}
+
+get_cached(){
+  if [ -f "$WINID_FILE" ]; then
+    local id
+    id="$(cat "$WINID_FILE")" || true
+    if is_target_window "$id"; then
+      echo "$id"
+      return 0
+    fi
+  fi
+  return 1
+}
+
+save_cache(){
+  printf '%s\n' "$1" > "$WINID_FILE"
+}
+
+# Find window based on the Chrome profile's PID(s) instead of WM_CLASS only.
+find_target_by_pid(){
+  # All chrome processes for this profile
+  mapfile -t pids < <(pgrep -fa "$BROWSER" | grep -- "--user-data-dir=$PROFILE_DIR" | awk '{print $1}' || true)
+  [ "${#pids[@]}" -gt 0 ] || return 1
+
+  local pid wins w
+  # Iterate most recent PIDs first
+  for (( i=${#pids[@]}-1; i>=0; i-- )); do
+    pid="${pids[i]}"
+    mapfile -t wins < <("$XDOTOOL" search --pid "$pid" 2>/dev/null || true)
+    if [ "${#wins[@]}" -eq 0 ]; then
+      continue
+    fi
+    # Prefer newest window
+    for (( j=${#wins[@]}-1; j>=0; j-- )); do
+      w="${wins[j]}"
+      if is_target_window "$w"; then
+        echo "$w"
+        return 0
+      fi
+    done
+  done
+
+  return 1
+}
+
+# Fallback: the old class-based search (for pure X11 setups)
+find_target_by_class(){
+  mapfile -t wins < <("$XDOTOOL" search --class "$WM_CLASS" 2>/dev/null || true)
+  local w
+  for (( i=${#wins[@]}-1; i>=0; i-- )); do
+    w="${wins[i]}"
+    if is_target_window "$w"; then
+      echo "$w"
+      return 0
+    fi
+  done
+  return 1
+}
+
+find_target(){
+  # Try PID-based first (robust), then fallback to WM_CLASS
+  find_target_by_pid && return 0
+  find_target_by_class && return 0
+  return 1
+}
+
+is_hidden(){
+  "$XPROP" -id "$1" _NET_WM_STATE 2>/dev/null | grep -q "_NET_WM_STATE_HIDDEN"
+}
+
+current_desktop(){ "$XDOTOOL" get_desktop; }
+window_desktop(){ "$XDOTOOL" get_desktop_for_window "$1" 2>/dev/null || echo "$(current_desktop)"; }
+
+force_move_to_current_desktop(){
+  local id="$1" cur dwin
+  cur="$(current_desktop)"
+  dwin="$(window_desktop "$id")"
+
+  if [ "$dwin" != "$cur" ]; then
+    "$XDOTOOL" set_desktop_for_window "$id" "$cur" || true
+    sleep 0.03
+  fi
+
+  dwin="$(window_desktop "$id")"
+  if [ "$dwin" != "$cur" ]; then
+    "$XPROP" -id "$id" -f _NET_WM_DESKTOP 32c -set _NET_WM_DESKTOP "$cur" || true
+    sleep 0.03
+  fi
+}
+
+show_window(){
+  local id="$1"
+  force_move_to_current_desktop "$id"
+  "$XDOTOOL" windowmap "$id" || true
+  "$XDOTOOL" windowraise "$id" || true
+  "$XDOTOOL" windowactivate --sync "$id" || true
+  sleep 0.03
+  "$XDOTOOL" windowmove "$id" "$X" "$Y"
+  "$XDOTOOL" windowsize "$id" "$W" "$H"
+}
+
+hide_window(){
+  "$XDOTOOL" windowminimize "$1" || true
+}
+
+instance_running(){
+  # Detect our Chrome instance by its user-data-dir
+  pgrep -fa "$BROWSER" | grep -q -- "--user-data-dir=$PROFILE_DIR"
+}
+
+launch_no_url(){
+  # No URL => restore session if Chrome is configured that way
+  "$BROWSER" \
+    "${CHROME_FLAGS[@]}" \
+    --class="$WM_CLASS" \
+    --user-data-dir="$PROFILE_DIR" \
+    >/dev/null 2>&1 & disown
+}
+
+launch_first_time(){
+  # First run only: open as an app window to ChatGPT
+  "$BROWSER" \
+    "${CHROME_FLAGS[@]}" \
+    --class="$WM_CLASS" \
+    --user-data-dir="$PROFILE_DIR" \
+    --app="$CHAT_URL" \
+    >/dev/null 2>&1 & disown
+  touch "$FIRST_RUN_FLAG"
+}
+
+# ---- Main ----
+log "---- Trigger ---- DISPLAY=$DISPLAY XDG_SESSION_TYPE=${XDG_SESSION_TYPE:-unknown}"
+WIN="$(get_cached || true)"
+[ -n "${WIN:-}" ] || WIN="$(find_target || true)"
+
+if [ -n "${WIN:-}" ]; then
+  save_cache "$WIN"
+  if is_hidden "$WIN"; then
+    log "Restore ($WIN)"
+    show_window "$WIN"
+  else
+    log "Minimize ($WIN)"
+    hide_window "$WIN"
+  fi
+  exit 0
+fi
+
+# No window found
+if instance_running; then
+  log "Instance running; opening a window WITHOUT URL (no extra tabs)."
+  launch_no_url
+else
+  log "No instance; FIRST launch (single ChatGPT app window)."
+  launch_first_time
+fi
+
+# Wait briefly, then show
+for _ in {1..200}; do
+  WIN="$(find_target || true)"
+  [ -n "${WIN:-}" ] && break
+  sleep 0.05
+done
+
+[ -n "${WIN:-}" ] && save_cache "$WIN"
+[ -n "${WIN:-}" ] && show_window "$WIN"
